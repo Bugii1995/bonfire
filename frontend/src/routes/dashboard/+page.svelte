@@ -1,1 +1,7 @@
-<h1>Dashboard</h1>
+<script>
+	import BrutalButton from "$lib/components/Brutal_Button.svelte";
+
+</script>
+<BrutalButton>
+Click me!
+</BrutalButton>
