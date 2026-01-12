@@ -1,20 +1,17 @@
 package main
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
+
+	"github.com/bugii1995/backend/internal/quiz"
 )
 
 func main() {
 	r := gin.Default()
 	r.SetTrustedProxies(nil)
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "ok",
-		})
-	})
+	r.POST("/quiz/start", quiz.StartQuiz)
+	r.POST("/quiz/answer", quiz.AnswerQuiz)
 
 	r.Run(":8080")
 }
