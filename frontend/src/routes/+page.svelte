@@ -1,42 +1,76 @@
+<script>
+	let sessionId = null;
+	let question = null;
+	let explanation = "";
+	let status = "idle"; // idle | answering | finished
+	let mastery = null;
 
-<script lang="ts">
-  import { Card } from "flowbite-svelte";
-  
+	async function startQuiz() {
+		const res = await fetch("http://localhost:8080/quiz/start", {
+			method: "POST"
+		});
+		const data = await res.json();
+		sessionId = data.session_id;
+		question = data.question;
+		explanation = "";
+		status = "answering";
+	}
+
+	async function answer(option) {
+		const res = await fetch("http://localhost:8080/quiz/answer", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				session_id: sessionId,
+				question_id: question.id,
+				topic_id: "articles",
+				was_correct: option === getCorrectGuess(),
+				difficulty: 2
+			})
+		});
+
+		const data = await res.json();
+		explanation = data.explanation;
+		mastery = data.mastery;
+
+		if (data.status === "finished") {
+			status = "finished";
+			question = null;
+		} else {
+			question = data.next_question;
+		}
+	}
+
+	// TEMP: frontend guesses correctness (backend will validate later)
+	function getCorrectGuess() {
+		return question.options[0]; // just for MVP
+	}
 </script>
 
-<main class=" gap-10 flex items-center justify-center flex-wrap">
+<h1>Chocolingo – Quiz MVP</h1>
 
+{#if status === "idle"}
+	<button on:click={startQuiz}>Start Quiz</button>
+{/if}
 
-<Card href="/" class="p-4 sm:p-6 md:p-8">
-  <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Noteworthy technology acquisitions 2021</h5>
-  <p class="leading-tight font-normal text-gray-700 dark:text-gray-400">Here are the biggest enterprise technology acquisitions of 2021 so far, in reverse chronological order.</p>
-</Card>
-<Card href="/" class="p-4 sm:p-6 md:p-8">
-  <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Noteworthy technology acquisitions 2021</h5>
-  <p class="leading-tight font-normal text-gray-700 dark:text-gray-400">Here are the biggest enterprise technology acquisitions of 2021 so far, in reverse chronological order.</p>
-</Card>
-<Card href="/" class="p-4 sm:p-6 md:p-8">
-  <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Noteworthy technology acquisitions 2021</h5>
-  <p class="leading-tight font-normal text-gray-700 dark:text-gray-400">Here are the biggest enterprise technology acquisitions of 2021 so far, in reverse chronological order.</p>
-</Card>
-<Card href="/" class="p-4 sm:p-6 md:p-8">
-  <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Noteworthy technology acquisitions 2021</h5>
-  <p class="leading-tight font-normal text-gray-700 dark:text-gray-400">Here are the biggest enterprise technology acquisitions of 2021 so far, in reverse chronological order.</p>
-</Card>
-<Card href="/" class="p-4 sm:p-6 md:p-8">
-  <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Noteworthy technology acquisitions 2021</h5>
-  <p class="leading-tight font-normal text-gray-700 dark:text-gray-400">Here are the biggest enterprise technology acquisitions of 2021 so far, in reverse chronological order.</p>
-</Card>
-<Card href="/" class="p-4 sm:p-6 md:p-8">
-  <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Noteworthy technology acquisitions 2021</h5>
-  <p class="leading-tight font-normal text-gray-700 dark:text-gray-400">Here are the biggest enterprise technology acquisitions of 2021 so far, in reverse chronological order.</p>
-</Card>
-<Card href="/" class="p-4 sm:p-6 md:p-8">
-  <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Noteworthy technology acquisitions 2021</h5>
-  <p class="leading-tight font-normal text-gray-700 dark:text-gray-400">Here are the biggest enterprise technology acquisitions of 2021 so far, in reverse chronological order.</p>
-</Card>
-<Card href="/" class="p-4 sm:p-6 md:p-8">
-  <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Noteworthy technology acquisitions 2021</h5>
-  <p class="leading-tight font-normal text-gray-700 dark:text-gray-400">Here are the biggest enterprise technology acquisitions of 2021 so far, in reverse chronological order.</p>
-</Card>
-</main>
+{#if question}
+	<h2>{question.prompt}</h2>
+
+	{#each question.options as opt}
+		<button on:click={() => answer(opt)}>
+			{opt}
+		</button>
+	{/each}
+{/if}
+
+{#if explanation}
+	<p><strong>Explanation:</strong> {explanation}</p>
+{/if}
+
+{#if mastery}
+	<p>Mastery: {Math.round(mastery.Mastery)}%</p>
+{/if}
+
+{#if status === "finished"}
+	<h2>Quiz finished 🎉</h2>
+{/if}

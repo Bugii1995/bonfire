@@ -1,16 +1,23 @@
+# Dependencies
 node_modules
+dist
 
 # Output
 .output
+/.svelte-kit
+/build
 .vercel
 .netlify
 .wrangler
-/.svelte-kit
-/build
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
 
 # Env
 .env
