@@ -13,7 +13,7 @@ var sessions = make(map[string]*Session)
 
 // ---------------- DTOs ----------------
 
-// Safe question sent to client (NO correct answer)
+// QuestionResponse is safe to send to clients
 type QuestionResponse struct {
 	ID      int64    `json:"id"`
 	Prompt  string   `json:"prompt"`
@@ -27,18 +27,19 @@ type StartQuizResponse struct {
 }
 
 type AnswerQuizRequest struct {
-	SessionID  string `json:"session_id"`
-	QuestionID int64  `json:"question_id"`
-	TopicID    string `json:"topic_id"`
-	WasCorrect bool   `json:"was_correct"`
-	Difficulty int    `json:"difficulty"`
+	SessionID      string `json:"session_id"`
+	QuestionID     int64  `json:"question_id"`
+	TopicID        string `json:"topic_id"`
+	SelectedOption string `json:"selected_option"`
+	Difficulty     int    `json:"difficulty"`
 }
 
 type AnswerQuizResponse struct {
-	Status       string              `json:"status"` // continue | finished
+	Status       string              `json:"status"`
 	NextQuestion *QuestionResponse   `json:"next_question,omitempty"`
 	Mastery      MasteryUpdateResult `json:"mastery"`
 	Explanation  string              `json:"explanation"`
+	IsCorrect    bool                `json:"is_correct"`
 }
 
 // ---------------- Helpers ----------------
@@ -67,7 +68,7 @@ func findQuestionByID(questions []Question, id int64) Question {
 func StartQuiz(c *gin.Context) {
 	now := time.Now()
 
-	// ---- TEMP in-memory question set (Milestone 1) ----
+	// ---- In-memory questions (Milestone 1) ----
 	questions := []Question{
 		{
 			ID:             1,
@@ -88,7 +89,7 @@ func StartQuiz(c *gin.Context) {
 			Explanation:    "'University' starts with a 'you' sound, so we use 'a'.",
 		},
 	}
-	// ---------------------------------------------------
+	// ------------------------------------------
 
 	progress := []TopicProgress{
 		{
@@ -131,17 +132,18 @@ func AnswerQuiz(c *gin.Context) {
 
 	now := time.Now()
 
+	answered := findQuestionByID(session.Questions, req.QuestionID)
+	wasCorrect := req.SelectedOption == answered.CorrectAnswer
+
 	next, update := session.SubmitAnswer(
 		Answer{
 			QuestionID: req.QuestionID,
 			TopicID:    req.TopicID,
-			WasCorrect: req.WasCorrect,
+			WasCorrect: wasCorrect,
 			Difficulty: req.Difficulty,
 		},
 		now,
 	)
-
-	answered := findQuestionByID(session.Questions, req.QuestionID)
 
 	// ---- Finished ----
 	if next == nil {
@@ -149,6 +151,7 @@ func AnswerQuiz(c *gin.Context) {
 			Status:      "finished",
 			Mastery:     update,
 			Explanation: answered.Explanation,
+			IsCorrect:   wasCorrect,
 		})
 		return
 	}
@@ -162,5 +165,6 @@ func AnswerQuiz(c *gin.Context) {
 		NextQuestion: &resp,
 		Mastery:      update,
 		Explanation:  answered.Explanation,
+		IsCorrect:    wasCorrect,
 	})
 }
