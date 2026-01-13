@@ -7,51 +7,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// In-memory session store (TEMPORARY)
+// ---------------- In-memory session store ----------------
+
 var sessions = make(map[string]*Session)
 
-// ---- Request / Response DTOs ----
+// ---------------- DTOs ----------------
+
+// Safe question sent to client (NO correct answer)
+type QuestionResponse struct {
+	ID      int64    `json:"id"`
+	Prompt  string   `json:"prompt"`
+	Options []string `json:"options"`
+	Purpose string   `json:"purpose"`
+}
 
 type StartQuizResponse struct {
-	SessionID string             `json:"session_id"`
-	Question  *SelectedQuestion  `json:"question"`
+	SessionID string           `json:"session_id"`
+	Question  QuestionResponse `json:"question"`
 }
-
-// ---- Handlers ----
-
-// StartQuiz creates a new quiz session and returns the first question
-func StartQuiz(c *gin.Context) {
-	now := time.Now()
-
-	// --- TEMP DATA (replace with DB later) ---
-	questions := []Question{
-		{ID: 1, TopicID: "articles", Difficulty: 1},
-		{ID: 2, TopicID: "articles", Difficulty: 2},
-		{ID: 3, TopicID: "articles", Difficulty: 3},
-	}
-
-	progress := []TopicProgress{
-		{
-			TopicID:  "articles",
-			Mastery:  40,
-			LastSeen: now,
-		},
-	}
-
-	// ----------------------------------------
-
-	session := NewSession(questions, progress, nil)
-	sessions[session.ID] = session
-
-	first := session.NextQuestion(now)
-
-	c.JSON(http.StatusOK, StartQuizResponse{
-		SessionID: session.ID,
-		Question:  first,
-	})
-}
-
-// ---- Answer DTOs ----
 
 type AnswerQuizRequest struct {
 	SessionID  string `json:"session_id"`
@@ -62,11 +35,87 @@ type AnswerQuizRequest struct {
 }
 
 type AnswerQuizResponse struct {
-	Status       string                `json:"status"` // continue | finished
-	NextQuestion *SelectedQuestion     `json:"next_question,omitempty"`
-	Mastery      MasteryUpdateResult   `json:"mastery"`
+	Status       string              `json:"status"` // continue | finished
+	NextQuestion *QuestionResponse   `json:"next_question,omitempty"`
+	Mastery      MasteryUpdateResult `json:"mastery"`
+	Explanation  string              `json:"explanation"`
 }
-// AnswerQuiz processes an answer and returns the next question
+
+// ---------------- Helpers ----------------
+
+func toQuestionResponse(q Question, purpose QuestionPurpose) QuestionResponse {
+	return QuestionResponse{
+		ID:      q.ID,
+		Prompt:  q.Prompt,
+		Options: q.Options,
+		Purpose: string(purpose),
+	}
+}
+
+func findQuestionByID(questions []Question, id int64) Question {
+	for _, q := range questions {
+		if q.ID == id {
+			return q
+		}
+	}
+	panic("question not found")
+}
+
+// ---------------- Handlers ----------------
+
+// POST /quiz/start
+func StartQuiz(c *gin.Context) {
+	now := time.Now()
+
+	// ---- TEMP in-memory question set (Milestone 1) ----
+	questions := []Question{
+		{
+			ID:             1,
+			TopicID:        "articles",
+			Difficulty:     1,
+			Prompt:         "Choose the correct article: ___ apple",
+			Options:        []string{"a", "an", "the"},
+			CorrectAnswer:  "an",
+			Explanation:    "We use 'an' before words that start with a vowel sound.",
+		},
+		{
+			ID:             2,
+			TopicID:        "articles",
+			Difficulty:     2,
+			Prompt:         "Choose the correct article: ___ university",
+			Options:        []string{"a", "an", "the"},
+			CorrectAnswer:  "a",
+			Explanation:    "'University' starts with a 'you' sound, so we use 'a'.",
+		},
+	}
+	// ---------------------------------------------------
+
+	progress := []TopicProgress{
+		{
+			TopicID:  "articles",
+			Mastery:  40,
+			LastSeen: now,
+		},
+	}
+
+	session := NewSession(questions, progress, nil)
+	sessions[session.ID] = session
+
+	selected := session.NextQuestion(now)
+	if selected == nil {
+		c.JSON(http.StatusOK, gin.H{"error": "no questions available"})
+		return
+	}
+
+	q := findQuestionByID(session.Questions, selected.QuestionID)
+
+	c.JSON(http.StatusOK, StartQuizResponse{
+		SessionID: session.ID,
+		Question:  toQuestionResponse(q, selected.Purpose),
+	})
+}
+
+// POST /quiz/answer
 func AnswerQuiz(c *gin.Context) {
 	var req AnswerQuizRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -92,19 +141,26 @@ func AnswerQuiz(c *gin.Context) {
 		now,
 	)
 
-	// ---- END OF QUIZ ----
+	answered := findQuestionByID(session.Questions, req.QuestionID)
+
+	// ---- Finished ----
 	if next == nil {
 		c.JSON(http.StatusOK, AnswerQuizResponse{
-			Status:  "finished",
-			Mastery: update,
+			Status:      "finished",
+			Mastery:     update,
+			Explanation: answered.Explanation,
 		})
 		return
 	}
 
-	// ---- CONTINUE ----
+	// ---- Continue ----
+	nextQ := findQuestionByID(session.Questions, next.QuestionID)
+	resp := toQuestionResponse(nextQ, next.Purpose)
+
 	c.JSON(http.StatusOK, AnswerQuizResponse{
 		Status:       "continue",
-		NextQuestion: next,
+		NextQuestion: &resp,
 		Mastery:      update,
+		Explanation:  answered.Explanation,
 	})
 }

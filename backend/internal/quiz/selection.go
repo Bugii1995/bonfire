@@ -27,7 +27,13 @@ type Question struct {
 	ID         int64
 	TopicID    string
 	Difficulty int // 1 = easy, 2 = medium, 3 = hard
+
+	Prompt        string
+	Options       []string
+	CorrectAnswer string
+	Explanation   string
 }
+
 
 //
 // -------- Question purpose (semantic intent) --------
